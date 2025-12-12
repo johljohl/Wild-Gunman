@@ -2,7 +2,10 @@
 <html lang="sv">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>Wild Gunman Clone</title>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
@@ -20,23 +23,30 @@
         margin: 0;
         overflow: hidden;
         user-select: none;
+        -webkit-user-select: none; /* För Safari */
+        touch-action: none; /* Förhindra zoom/scroll gester */
       }
 
       #game-container {
         position: relative;
-        /* Vi behåller en stor behållare, men grafiken inuti blir "lågupplöst" */
-        width: 768px; /* 256 * 3 */
-        height: 672px; /* 224 * 3 */
+
+        /* --- MOBILANPASSNING START --- */
+        /* Istället för fasta pixlar, använd responsiv storlek */
+        width: 95%; /* Ta upp det mesta av bredden på små skärmar */
+        max-width: 768px; /* Men bli inte större än desktop-storlek */
+        aspect-ratio: 256/224; /* Behåll det klassiska bildförhållandet */
+        max-height: 90vh; /* Bli inte högre än skärmen */
+        /* --- MOBILANPASSNING SLUT --- */
+
         box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
         background: #000;
-        border: 4px solid #333;
+        margin: auto; /* Centrera */
       }
 
       canvas {
         display: block;
         width: 100%;
         height: 100%;
-        /* Detta är nyckeln till 8-bit looken: */
         image-rendering: pixelated;
         image-rendering: crisp-edges;
       }
@@ -51,7 +61,7 @@
         pointer-events: none;
       }
 
-      /* --- HUD (In-Game Interface) --- */
+      /* --- HUD --- */
       #hud {
         display: none;
         width: 100%;
@@ -60,7 +70,6 @@
         justify-content: space-between;
       }
 
-      /* Anpassad HUD för att matcha den nya låga upplösningen visuellt (även om den är HTML) */
       .hud-bar {
         background: #000;
         width: 100%;
@@ -68,9 +77,9 @@
         justify-content: space-between;
         align-items: center;
         color: #adff2f;
-        font-size: 16px; /* Håller texten läsbar */
+        font-size: 16px;
         text-transform: uppercase;
-        padding: 15px 30px; /* Mer padding för storleken */
+        padding: 2% 4%; /* Procentuell padding för skalning */
         box-sizing: border-box;
         border-bottom: 4px solid #000;
         position: absolute;
@@ -92,7 +101,7 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        min-width: 80px;
+        min-width: 15%; /* Responsiv bredd */
       }
 
       .hud-label {
@@ -101,6 +110,7 @@
         padding: 2px 5px;
         font-size: 10px;
         margin-bottom: 5px;
+        white-space: nowrap;
       }
 
       .hud-value {
@@ -116,14 +126,14 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding-top: 80px;
+        padding-top: 10%; /* Responsiv top padding */
       }
 
       .logo-main {
-        font-size: 50px; /* Något mindre font för att passa pixliga känslan */
+        font-size: 50px;
         color: #d85040;
         text-shadow: 4px 4px 0 #000;
-        margin-bottom: 50px;
+        margin-bottom: 8%;
         letter-spacing: 5px;
         transform: scaleY(1.2);
         text-align: center;
@@ -140,10 +150,12 @@
 
       .menu-row {
         display: flex;
-        gap: 30px;
+        gap: 20px;
         font-size: 18px;
         cursor: pointer;
-        width: 450px;
+        width: 80%; /* Bredare klickytor på mobil */
+        max-width: 450px;
+        justify-content: center; /* Centrera texten */
       }
 
       .menu-label {
@@ -158,16 +170,19 @@
         text-align: left;
       }
 
-      .menu-row:hover .menu-label::before {
-        content: "►";
-        color: #fff;
-        position: absolute;
-        margin-left: -25px;
+      /* Ta bort hover-pil på touch-enheter för att undvika att den fastnar */
+      @media (hover: hover) {
+        .menu-row:hover .menu-label::before {
+          content: "►";
+          color: #fff;
+          position: absolute;
+          margin-left: -25px;
+        }
       }
 
       .footer-info {
         margin-top: auto;
-        margin-bottom: 30px;
+        margin-bottom: 5%;
         text-align: center;
         font-size: 12px;
         line-height: 2;
@@ -177,15 +192,47 @@
         color: #d8ac50;
       }
 
+      /* --- MEDIA QUERIES FÖR MOBIL (Små skärmar) --- */
+      @media (max-width: 600px) {
+        .logo-main {
+          font-size: 28px;
+          letter-spacing: 2px;
+        }
+        .menu-row {
+          font-size: 12px;
+          gap: 10px;
+        }
+        .menu-label {
+          width: 80px;
+        }
+        .hud-value {
+          font-size: 12px;
+        }
+        .hud-label {
+          font-size: 8px;
+          padding: 1px 3px;
+          border-width: 1px;
+        }
+        .footer-info {
+          font-size: 8px;
+        }
+        .big-msg {
+          font-size: 20px;
+          padding: 10px 15px;
+        }
+      }
+
       /* --- SPELMEDDELANDEN --- */
       #message-overlay {
         position: absolute;
-        top: 50%;
+        top: 25%; /* Flytta upp den till himlen (var 50%) */
         left: 50%;
         transform: translate(-50%, -50%);
         text-align: center;
         display: none;
         z-index: 20;
+        width: 100%;
+        pointer-events: none; /* VIKTIGT: Låt klick gå igenom texten! */
       }
 
       .big-msg {
@@ -221,7 +268,6 @@
         </div>
       </div>
 
-      <!-- CANVAS: Notera den låga upplösningen (NES NTSC upplösning ca 256x224) -->
       <canvas id="gameCanvas" width="256" height="224"></canvas>
 
       <div id="hud-bottom" class="hud-bar hud-bottom" style="display: none">
@@ -246,11 +292,20 @@
         <div class="logo-main">WILD<br />GUNMAN</div>
 
         <div class="menu-container">
-          <div class="menu-row" onclick="startGame('A')">
+          <!-- Ontouchstart lagt till för snabbare respons i menyn -->
+          <div
+            class="menu-row"
+            onclick="startGame('A')"
+            ontouchstart="startGame('A')"
+          >
             <div class="menu-label">GAME A</div>
             <div class="menu-desc">1 OUTLAW</div>
           </div>
-          <div class="menu-row" onclick="startGame('B')">
+          <div
+            class="menu-row"
+            onclick="startGame('B')"
+            ontouchstart="startGame('B')"
+          >
             <div class="menu-label">GAME B</div>
             <div class="menu-desc">2 OUTLAWS</div>
           </div>
@@ -291,6 +346,9 @@
       let reactionLimit = 1000;
       let enemies = [];
       let playerReactionTime = 0;
+
+      // Ny variabel för att förhindra klick vid start av runda
+      let inputLockTimer = 0;
 
       // --- AUDIO ---
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -337,14 +395,14 @@
         }
       }
 
-      // --- ENTITIES (Anpassade för 256x224 upplösning) ---
+      // --- ENTITIES ---
       function createEnemy(type, startX, targetX) {
         return {
-          type: type, // 0 = standard, 1 = dark
+          type: type,
           x: startX,
-          y: 110, // Ritad på "marknivå" i den lilla canvasen
-          w: 24, // Mycket mindre bredd (i pixlar)
-          h: 48, // Mycket mindre höjd
+          y: 110,
+          w: 24,
+          h: 48,
           targetX: targetX,
           frame: 0,
           state: "WALK",
@@ -354,6 +412,9 @@
 
       // --- LOGIK ---
       function startGame(mode) {
+        // Förhindra dubbelklick från touch + click
+        if (gameState !== "MENU") return;
+
         gameMode = mode;
         gameState = "WALK_IN";
         score = 0;
@@ -364,6 +425,9 @@
         document.getElementById("hud-top").style.display = "flex";
         document.getElementById("hud-bottom").style.display = "flex";
 
+        // Starta ljudkontext vid första interaktion (viktigt för mobiler)
+        if (audioCtx.state === "suspended") audioCtx.resume();
+
         resetRound();
       }
 
@@ -373,19 +437,19 @@
         playerReactionTime = 0;
         updateUI();
 
+        // Lås input en kort stund för att förhindra "ghost clicks" från menyn
+        inputLockTimer = Date.now() + 500;
+
         enemies = [];
 
         let baseReaction = 1000 - level * 50;
         if (baseReaction < 400) baseReaction = 400;
         reactionLimit = baseReaction;
 
-        // Koordinater anpassade för 256px bredd
         if (gameMode === "A") {
-          // Mitten är ca 128 -> target ca 116
           enemies.push(createEnemy(0, -30, 116));
         } else {
           reactionLimit += 200;
-          // Vänster ca 80, Höger ca 150
           enemies.push(createEnemy(1, -30, 70));
           enemies.push(createEnemy(0, 280, 160));
         }
@@ -398,7 +462,7 @@
           let allArrived = true;
           enemies.forEach((e) => {
             if (Math.abs(e.x - e.targetX) > 1.5) {
-              e.x += e.x < e.targetX ? 1.5 : -1.5; // Långsammare pixel-rörelse
+              e.x += e.x < e.targetX ? 1.5 : -1.5;
               allArrived = false;
               if (now % 200 > 100) e.frame = 1;
               else e.frame = 0;
@@ -419,7 +483,7 @@
             playSound("cue");
             const msg = document.getElementById("game-msg");
             msg.innerText = "FIRE!";
-            msg.style.color = "#d85040"; // NES Röd
+            msg.style.color = "#d85040";
             msg.style.borderColor = "#d85040";
             document.getElementById("message-overlay").style.display = "block";
           }
@@ -436,9 +500,17 @@
         }
       }
 
-      function checkHit(mx, my) {
-        // mx och my kommer in som skärm-koordinater, måste skalas till 256x224
-        if (gameState === "WAIT" || gameState === "WALK_IN") {
+      function handleInput(x, y) {
+        // Ignorera input om vi är i "lockout" perioden (precis vid start)
+        if (Date.now() < inputLockTimer) return;
+
+        // Om de fortfarande går in, gör ingenting (var snäll mot mobilanvändare)
+        if (gameState === "WALK_IN") {
+          return;
+        }
+
+        // Endast straffa om man väntar på "FIRE"
+        if (gameState === "WAIT") {
           gameState = "END";
           const msg = document.getElementById("game-msg");
           msg.innerText = "FOUL!";
@@ -459,12 +531,12 @@
           let hitAny = false;
           enemies.forEach((e) => {
             if (e.state !== "DEAD") {
-              // Enkel hitbox (med lite marginal)
+              // Generösare hitbox för touch (+15px istället för +10)
               if (
-                mx >= e.x - 5 &&
-                mx <= e.x + e.w + 5 &&
-                my >= e.y - 10 &&
-                my <= e.y + e.h + 10
+                x >= e.x - 15 &&
+                x <= e.x + e.w + 15 &&
+                y >= e.y - 25 &&
+                y <= e.y + e.h + 25
               ) {
                 e.state = "DEAD";
                 hitAny = true;
@@ -532,18 +604,14 @@
         setTimeout(() => (el.style.opacity = 0), 50);
       }
 
-      // --- RITNING (Lågupplöst) ---
+      // --- RITNING ---
       function draw() {
-        // Rensa
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Bakgrund (NES upplösning)
-        // Himmelen
         ctx.fillStyle = "#202090";
         ctx.fillRect(0, 0, canvas.width, 140);
 
-        // Marken
         ctx.fillStyle = "#a88440";
         ctx.fillRect(0, 140, canvas.width, 84);
 
@@ -552,41 +620,37 @@
       }
 
       function drawScenery() {
-        // Berg (Enkla polygoner)
-        ctx.fillStyle = "#603030"; // Mörkbrun
+        ctx.fillStyle = "#603030";
         ctx.beginPath();
         ctx.moveTo(20, 140);
         ctx.lineTo(60, 60);
         ctx.lineTo(100, 140);
         ctx.fill();
 
-        // Kaktusar (Små rektanglar)
         drawCactus(110, 130, 1);
         drawCactus(220, 135, 0.8);
       }
 
       function drawCactus(x, y, s) {
         ctx.fillStyle = "#389030";
-        // Använder Math.floor för att säkerställa "pixel snap"
         const w = Math.floor(6 * s);
         const h = Math.floor(25 * s);
-        ctx.fillRect(x, y - h, w, h); // Stam
-        ctx.fillRect(x - w, y - h / 2, w, w); // Arm V
+        ctx.fillRect(x, y - h, w, h);
+        ctx.fillRect(x - w, y - h / 2, w, w);
         ctx.fillRect(x - w, y - h / 1.5, 2, w * 2);
-        ctx.fillRect(x + w, y - h / 2.5, w, w); // Arm H
+        ctx.fillRect(x + w, y - h / 2.5, w, w);
         ctx.fillRect(x + w * 1.5, y - h / 1.8, 2, w * 2);
       }
 
       function drawEnemy(e) {
         ctx.save();
-        ctx.translate(Math.floor(e.x), Math.floor(e.y)); // Pixel snap
+        ctx.translate(Math.floor(e.x), Math.floor(e.y));
 
         if (e.state === "DEAD") {
           ctx.rotate(Math.PI / 2);
           ctx.translate(0, -16);
         }
 
-        // Färger
         let cSkin = "#f8b880";
         let cVest = "#a00000";
         let cPants = "#3030b0";
@@ -598,23 +662,23 @@
           cHat = "#a05000";
         }
 
-        // Byxor
+        // Ben
         ctx.fillStyle = cPants;
-        ctx.fillRect(4, 30, 6, 18); // V
-        ctx.fillRect(14, 30, 6, 18); // H
+        ctx.fillRect(4, 30, 6, 18);
+        ctx.fillRect(14, 30, 6, 18);
 
         // Överkropp
         ctx.fillStyle = "#fff";
-        ctx.fillRect(4, 12, 16, 18); // Skjorta
+        ctx.fillRect(4, 12, 16, 18);
         ctx.fillStyle = cVest;
-        ctx.fillRect(4, 12, 4, 18); // Väst V
-        ctx.fillRect(16, 12, 4, 18); // Väst H
+        ctx.fillRect(4, 12, 4, 18);
+        ctx.fillRect(16, 12, 4, 18);
 
         // Huvud
         ctx.fillStyle = cSkin;
         ctx.fillRect(7, 2, 10, 10);
 
-        // Ansikte (Pixel ögon)
+        // Ansikte
         ctx.fillStyle = "#000";
         if (e.state === "DEAD") {
           ctx.fillRect(8, 5, 2, 1);
@@ -628,30 +692,29 @@
 
         // Hatt
         ctx.fillStyle = cHat;
-        ctx.fillRect(2, 0, 20, 2); // Brätte
-        ctx.fillRect(6, -4, 12, 4); // Topp
+        ctx.fillRect(2, 0, 20, 2);
+        ctx.fillRect(6, -4, 12, 4);
 
         // Armar
         if (e.state === "FIRE") {
           ctx.fillStyle = "#fff";
-          ctx.fillRect(20, 12, 8, 4); // Arm ut
+          ctx.fillRect(20, 12, 8, 4);
           ctx.fillStyle = "#000";
-          ctx.fillRect(28, 10, 4, 4); // Pistol
+          ctx.fillRect(28, 10, 4, 4);
 
           if (Math.random() > 0.5) {
             ctx.fillStyle = "#ffff00";
-            ctx.fillRect(32, 9, 6, 6); // Flamma
+            ctx.fillRect(32, 9, 6, 6);
           }
         } else {
           ctx.fillStyle = "#fff";
-          ctx.fillRect(0, 12, 4, 14); // Arm ner V
-          ctx.fillRect(20, 12, 4, 14); // Arm ner H
+          ctx.fillRect(0, 12, 4, 14);
+          ctx.fillRect(20, 12, 4, 14);
         }
 
         ctx.restore();
       }
 
-      // --- LOOP ---
       function loop() {
         if (gameState !== "MENU") {
           update();
@@ -661,28 +724,36 @@
       }
       loop();
 
-      // --- INPUT (Skalningshantering) ---
-      canvas.addEventListener("mousedown", (e) => {
+      // --- UNIFIED INPUT HANDLING (Touch & Mouse) ---
+      function onInteract(e) {
+        // Om spelet inte är igång, gör inget (menyn hanteras separat)
         if (gameState !== "MENU" && gameState !== "END") {
+          e.preventDefault(); // Förhindra scroll/zoom och dubbelfyrning av mus-event
+
           const rect = canvas.getBoundingClientRect();
 
-          // Räkna ut var vi klickade relativt canvasens visade storlek
-          const clientX = e.clientX - rect.left;
-          const clientY = e.clientY - rect.top;
+          let clientX, clientY;
+          if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+          } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+          }
 
-          // Skala om till 256x224
-          // Exempel: Om canvas visas som 768px bred, och vi klickar på 384px (mitten)
-          // Så blir scaleX = 256 / 768 = 0.333
-          // x = 384 * 0.333 = 128 (mitten av intern upplösning)
+          // Skala koordinaterna till intern upplösning (256x224)
           const scaleX = canvas.width / rect.width;
           const scaleY = canvas.height / rect.height;
 
-          const x = clientX * scaleX;
-          const y = clientY * scaleY;
+          const x = (clientX - rect.left) * scaleX;
+          const y = (clientY - rect.top) * scaleY;
 
-          checkHit(x, y);
+          handleInput(x, y);
         }
-      });
+      }
+
+      canvas.addEventListener("mousedown", onInteract);
+      canvas.addEventListener("touchstart", onInteract, { passive: false });
     </script>
   </body>
 </html>
