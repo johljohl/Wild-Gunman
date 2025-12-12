@@ -51,6 +51,25 @@
         image-rendering: crisp-edges;
       }
 
+      /* --- SCANLINES (CRT EFFECT) --- */
+      .scanlines {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 0),
+          rgba(255, 255, 255, 0) 50%,
+          rgba(0, 0, 0, 0.3) 50%,
+          /* Mörka linjer */ rgba(0, 0, 0, 0.3)
+        );
+        background-size: 100% 4px; /* Storlek på linjerna */
+        pointer-events: none; /* Klick går igenom */
+        z-index: 100; /* ÄNDRAT: Högst z-index för att täcka även startskärmen */
+      }
+
       /* --- UI LAGER --- */
       .ui-layer {
         position: absolute;
@@ -59,6 +78,7 @@
         width: 100%;
         height: 100%;
         pointer-events: none;
+        z-index: 60;
       }
 
       /* --- HUD --- */
@@ -84,7 +104,7 @@
         border-bottom: 4px solid #000;
         position: absolute;
         left: 0;
-        z-index: 5;
+        z-index: 70;
       }
 
       .hud-top {
@@ -122,7 +142,7 @@
       #start-screen {
         background-color: #000;
         pointer-events: auto;
-        z-index: 10;
+        z-index: 80; /* Lägre än scanlines (100) nu */
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -230,7 +250,7 @@
         transform: translate(-50%, -50%);
         text-align: center;
         display: none;
-        z-index: 20;
+        z-index: 90; /* Högre än startskärm, lägre än scanlines */
         width: 100%;
         pointer-events: none; /* VIKTIGT: Låt klick gå igenom texten! */
       }
@@ -254,6 +274,9 @@
   </head>
   <body>
     <div id="game-container">
+      <!-- SCANLINES -->
+      <div class="scanlines"></div>
+
       <!-- HUD -->
       <div id="hud-top" class="hud-bar hud-top" style="display: none">
         <div class="hud-group">
