@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wild Gunman Clone</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+
+      /* NES Färgpalett & Layout */
+      body {
+        background-color: #000;
+        color: white;
+        font-family: "Press Start 2P", cursive;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+        overflow: hidden;
+        user-select: none;
+      }
+
+      #game-container {
+        position: relative;
+        /* Vi behåller en stor behållare, men grafiken inuti blir "lågupplöst" */
+        width: 768px; /* 256 * 3 */
+        height: 672px; /* 224 * 3 */
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        background: #000;
+        border: 4px solid #333;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        /* Detta är nyckeln till 8-bit looken: */
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+
+      /* --- UI LAGER --- */
+      .ui-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      /* --- HUD (In-Game Interface) --- */
+      #hud {
+        display: none;
+        width: 100%;
+        height: 100%;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      /* Anpassad HUD för att matcha den nya låga upplösningen visuellt (även om den är HTML) */
+      .hud-bar {
+        background: #000;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: #adff2f;
+        font-size: 16px; /* Håller texten läsbar */
+        text-transform: uppercase;
+        padding: 15px 30px; /* Mer padding för storleken */
+        box-sizing: border-box;
+        border-bottom: 4px solid #000;
+        position: absolute;
+        left: 0;
+        z-index: 5;
+      }
+
+      .hud-top {
+        top: 0;
+        border-bottom: 4px solid #fff;
+      }
+
+      .hud-bottom {
+        bottom: 0;
+        border-top: 4px solid #fff;
+      }
+
+      .hud-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 80px;
+      }
+
+      .hud-label {
+        background: #000;
+        border: 2px solid #adff2f;
+        padding: 2px 5px;
+        font-size: 10px;
+        margin-bottom: 5px;
+      }
+
+      .hud-value {
+        font-size: 20px;
+        letter-spacing: 2px;
+      }
+
+      /* --- START SKÄRM --- */
+      #start-screen {
+        background-color: #000;
+        pointer-events: auto;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 80px;
+      }
+
+      .logo-main {
+        font-size: 50px; /* Något mindre font för att passa pixliga känslan */
+        color: #d85040;
+        text-shadow: 4px 4px 0 #000;
+        margin-bottom: 50px;
+        letter-spacing: 5px;
+        transform: scaleY(1.2);
+        text-align: center;
+        line-height: 1.5;
+      }
+
+      .menu-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        width: 100%;
+        align-items: center;
+      }
+
+      .menu-row {
+        display: flex;
+        gap: 30px;
+        font-size: 18px;
+        cursor: pointer;
+        width: 450px;
+      }
+
+      .menu-label {
+        color: #5c94fc;
+        width: 120px;
+        text-align: left;
+      }
+
+      .menu-desc {
+        color: #fff;
+        flex: 1;
+        text-align: left;
+      }
+
+      .menu-row:hover .menu-label::before {
+        content: "►";
+        color: #fff;
+        position: absolute;
+        margin-left: -25px;
+      }
+
+      .footer-info {
+        margin-top: auto;
+        margin-bottom: 30px;
+        text-align: center;
+        font-size: 12px;
+        line-height: 2;
+      }
+
+      .copyright {
+        color: #d8ac50;
+      }
+
+      /* --- SPELMEDDELANDEN --- */
+      #message-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        display: none;
+        z-index: 20;
+      }
+
+      .big-msg {
+        font-size: 30px;
+        color: #fff;
+        text-shadow: 3px 3px #000;
+        background: #000;
+        padding: 15px 25px;
+        border: 4px solid #fff;
+        display: inline-block;
+      }
+
+      .flash {
+        background: white;
+        opacity: 0;
+        transition: opacity 0.05s;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container">
+      <!-- HUD -->
+      <div id="hud-top" class="hud-bar hud-top" style="display: none">
+        <div class="hud-group">
+          <div class="hud-value" id="ui-time">0.00</div>
+        </div>
+        <div class="hud-group">
+          <div class="hud-label">TIME</div>
+          <div class="hud-label">GUNMAN</div>
+        </div>
+        <div class="hud-group">
+          <div class="hud-value" id="ui-limit">0.00</div>
+        </div>
+      </div>
+
+      <!-- CANVAS: Notera den låga upplösningen (NES NTSC upplösning ca 256x224) -->
+      <canvas id="gameCanvas" width="256" height="224"></canvas>
+
+      <div id="hud-bottom" class="hud-bar hud-bottom" style="display: none">
+        <div class="hud-group" style="align-items: flex-start">
+          <div class="hud-value" style="color: #adff2f">
+            $<span id="ui-reward">0</span>
+          </div>
+          <div style="font-size: 8px">REWARD</div>
+        </div>
+        <div class="hud-group">
+          <div class="hud-value" id="ui-score">000000</div>
+          <div style="font-size: 8px">SCORE</div>
+        </div>
+        <div class="hud-group" style="align-items: flex-end">
+          <div class="hud-value" id="ui-level">1</div>
+          <div style="font-size: 8px">LEVEL</div>
+        </div>
+      </div>
+
+      <!-- MENU -->
+      <div id="start-screen" class="ui-layer">
+        <div class="logo-main">WILD<br />GUNMAN</div>
+
+        <div class="menu-container">
+          <div class="menu-row" onclick="startGame('A')">
+            <div class="menu-label">GAME A</div>
+            <div class="menu-desc">1 OUTLAW</div>
+          </div>
+          <div class="menu-row" onclick="startGame('B')">
+            <div class="menu-label">GAME B</div>
+            <div class="menu-desc">2 OUTLAWS</div>
+          </div>
+          <div class="menu-row" style="opacity: 0.7; cursor: default">
+            <div class="menu-label">GAME C</div>
+            <div class="menu-desc">GANG</div>
+          </div>
+        </div>
+
+        <div class="footer-info">
+          <div style="color: white; margin-bottom: 10px">TOP SCORE - 12000</div>
+          <div class="copyright">©1984 NINTENDO CO.,LTD.</div>
+          <div class="copyright">MADE IN JAPAN</div>
+        </div>
+      </div>
+
+      <!-- MEDDELANDEN -->
+      <div id="message-overlay">
+        <div id="game-msg" class="big-msg">FIRE!</div>
+      </div>
+
+      <div id="flash-effect" class="ui-layer flash"></div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // Spelvariabler
+      let gameState = "MENU";
+      let gameMode = "A";
+      let level = 1;
+      let score = 0;
+      let reward = 500;
+
+      let waitTimer = 0;
+      let drawTimer = 0;
+      let reactionLimit = 1000;
+      let enemies = [];
+      let playerReactionTime = 0;
+
+      // --- AUDIO ---
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      function playSound(type) {
+        if (audioCtx.state === "suspended") audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const t = audioCtx.currentTime;
+
+        if (type === "fire") {
+          osc.type = "square";
+          osc.frequency.setValueAtTime(150, t);
+          osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
+          gain.gain.setValueAtTime(0.3, t);
+          gain.gain.linearRampToValueAtTime(0, t + 0.1);
+          osc.start();
+          osc.stop(t + 0.1);
+        } else if (type === "cue") {
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(880, t);
+          gain.gain.setValueAtTime(0.1, t);
+          gain.gain.linearRampToValueAtTime(0, t + 0.1);
+          osc.start();
+          osc.stop(t + 0.1);
+        } else if (type === "shot") {
+          osc.type = "sawtooth";
+          osc.frequency.setValueAtTime(1200, t);
+          osc.frequency.exponentialRampToValueAtTime(100, t + 0.15);
+          gain.gain.setValueAtTime(0.4, t);
+          gain.gain.linearRampToValueAtTime(0, t + 0.15);
+          osc.start();
+          osc.stop(t + 0.15);
+        } else if (type === "win") {
+          osc.type = "square";
+          osc.frequency.setValueAtTime(523, t);
+          osc.frequency.setValueAtTime(659, t + 0.08);
+          osc.frequency.setValueAtTime(784, t + 0.16);
+          osc.frequency.setValueAtTime(1046, t + 0.24);
+          gain.gain.value = 0.1;
+          osc.start();
+          osc.stop(t + 0.4);
+        }
+      }
+
+      // --- ENTITIES (Anpassade för 256x224 upplösning) ---
+      function createEnemy(type, startX, targetX) {
+        return {
+          type: type, // 0 = standard, 1 = dark
+          x: startX,
+          y: 110, // Ritad på "marknivå" i den lilla canvasen
+          w: 24, // Mycket mindre bredd (i pixlar)
+          h: 48, // Mycket mindre höjd
+          targetX: targetX,
+          frame: 0,
+          state: "WALK",
+          timer: 0,
+        };
+      }
+
+      // --- LOGIK ---
+      function startGame(mode) {
+        gameMode = mode;
+        gameState = "WALK_IN";
+        score = 0;
+        level = 1;
+        reward = 500;
+
+        document.getElementById("start-screen").style.display = "none";
+        document.getElementById("hud-top").style.display = "flex";
+        document.getElementById("hud-bottom").style.display = "flex";
+
+        resetRound();
+      }
+
+      function resetRound() {
+        gameState = "WALK_IN";
+        document.getElementById("message-overlay").style.display = "none";
+        playerReactionTime = 0;
+        updateUI();
+
+        enemies = [];
+
+        let baseReaction = 1000 - level * 50;
+        if (baseReaction < 400) baseReaction = 400;
+        reactionLimit = baseReaction;
+
+        // Koordinater anpassade för 256px bredd
+        if (gameMode === "A") {
+          // Mitten är ca 128 -> target ca 116
+          enemies.push(createEnemy(0, -30, 116));
+        } else {
+          reactionLimit += 200;
+          // Vänster ca 80, Höger ca 150
+          enemies.push(createEnemy(1, -30, 70));
+          enemies.push(createEnemy(0, 280, 160));
+        }
+      }
+
+      function update() {
+        const now = Date.now();
+
+        if (gameState === "WALK_IN") {
+          let allArrived = true;
+          enemies.forEach((e) => {
+            if (Math.abs(e.x - e.targetX) > 1.5) {
+              e.x += e.x < e.targetX ? 1.5 : -1.5; // Långsammare pixel-rörelse
+              allArrived = false;
+              if (now % 200 > 100) e.frame = 1;
+              else e.frame = 0;
+            } else {
+              e.frame = 0;
+              e.state = "IDLE";
+            }
+          });
+
+          if (allArrived) {
+            gameState = "WAIT";
+            waitTimer = now + (Math.random() * 2000 + 1000);
+          }
+        } else if (gameState === "WAIT") {
+          if (now > waitTimer) {
+            gameState = "DRAW";
+            drawTimer = now;
+            playSound("cue");
+            const msg = document.getElementById("game-msg");
+            msg.innerText = "FIRE!";
+            msg.style.color = "#d85040"; // NES Röd
+            msg.style.borderColor = "#d85040";
+            document.getElementById("message-overlay").style.display = "block";
+          }
+        } else if (gameState === "DRAW") {
+          let elapsed = now - drawTimer;
+          document.getElementById("ui-time").innerText = (
+            elapsed / 1000
+          ).toFixed(2);
+
+          let livingEnemies = enemies.filter((e) => e.state !== "DEAD");
+          if (livingEnemies.length > 0 && elapsed > reactionLimit) {
+            playerLost();
+          }
+        }
+      }
+
+      function checkHit(mx, my) {
+        // mx och my kommer in som skärm-koordinater, måste skalas till 256x224
+        if (gameState === "WAIT" || gameState === "WALK_IN") {
+          gameState = "END";
+          const msg = document.getElementById("game-msg");
+          msg.innerText = "FOUL!";
+          msg.style.color = "#d8ac50";
+          msg.style.borderColor = "#d8ac50";
+          document.getElementById("message-overlay").style.display = "block";
+          playSound("fire");
+          setTimeout(() => {
+            resetRound();
+          }, 2000);
+          return;
+        }
+
+        if (gameState === "DRAW") {
+          playSound("shot");
+          flashScreen();
+
+          let hitAny = false;
+          enemies.forEach((e) => {
+            if (e.state !== "DEAD") {
+              // Enkel hitbox (med lite marginal)
+              if (
+                mx >= e.x - 5 &&
+                mx <= e.x + e.w + 5 &&
+                my >= e.y - 10 &&
+                my <= e.y + e.h + 10
+              ) {
+                e.state = "DEAD";
+                hitAny = true;
+              }
+            }
+          });
+
+          if (enemies.every((e) => e.state === "DEAD")) {
+            playerReactionTime = Date.now() - drawTimer;
+            playerWon();
+          }
+        }
+      }
+
+      function playerWon() {
+        gameState = "END";
+        playSound("win");
+        document.getElementById("message-overlay").style.display = "none";
+
+        let points = Math.max(100, 2000 - playerReactionTime);
+        score += points;
+        reward += 100;
+        level++;
+        updateUI();
+
+        setTimeout(resetRound, 3000);
+      }
+
+      function playerLost() {
+        gameState = "END";
+        playSound("fire");
+        enemies.forEach((e) => {
+          if (e.state !== "DEAD") e.state = "FIRE";
+        });
+
+        const msg = document.getElementById("game-msg");
+        msg.innerText = "YOU LOST";
+        msg.style.color = "white";
+        msg.style.borderColor = "white";
+        document.getElementById("message-overlay").style.display = "block";
+
+        setTimeout(() => {
+          document.getElementById("start-screen").style.display = "flex";
+          document.getElementById("hud-top").style.display = "none";
+          document.getElementById("hud-bottom").style.display = "none";
+          document.getElementById("message-overlay").style.display = "none";
+          gameState = "MENU";
+        }, 3000);
+      }
+
+      function updateUI() {
+        document.getElementById("ui-score").innerText = score
+          .toString()
+          .padStart(6, "0");
+        document.getElementById("ui-reward").innerText = reward;
+        document.getElementById("ui-level").innerText = level;
+        document.getElementById("ui-limit").innerText = (
+          reactionLimit / 1000
+        ).toFixed(2);
+      }
+
+      function flashScreen() {
+        const el = document.getElementById("flash-effect");
+        el.style.opacity = 0.8;
+        setTimeout(() => (el.style.opacity = 0), 50);
+      }
+
+      // --- RITNING (Lågupplöst) ---
+      function draw() {
+        // Rensa
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Bakgrund (NES upplösning)
+        // Himmelen
+        ctx.fillStyle = "#202090";
+        ctx.fillRect(0, 0, canvas.width, 140);
+
+        // Marken
+        ctx.fillStyle = "#a88440";
+        ctx.fillRect(0, 140, canvas.width, 84);
+
+        drawScenery();
+        enemies.forEach((e) => drawEnemy(e));
+      }
+
+      function drawScenery() {
+        // Berg (Enkla polygoner)
+        ctx.fillStyle = "#603030"; // Mörkbrun
+        ctx.beginPath();
+        ctx.moveTo(20, 140);
+        ctx.lineTo(60, 60);
+        ctx.lineTo(100, 140);
+        ctx.fill();
+
+        // Kaktusar (Små rektanglar)
+        drawCactus(110, 130, 1);
+        drawCactus(220, 135, 0.8);
+      }
+
+      function drawCactus(x, y, s) {
+        ctx.fillStyle = "#389030";
+        // Använder Math.floor för att säkerställa "pixel snap"
+        const w = Math.floor(6 * s);
+        const h = Math.floor(25 * s);
+        ctx.fillRect(x, y - h, w, h); // Stam
+        ctx.fillRect(x - w, y - h / 2, w, w); // Arm V
+        ctx.fillRect(x - w, y - h / 1.5, 2, w * 2);
+        ctx.fillRect(x + w, y - h / 2.5, w, w); // Arm H
+        ctx.fillRect(x + w * 1.5, y - h / 1.8, 2, w * 2);
+      }
+
+      function drawEnemy(e) {
+        ctx.save();
+        ctx.translate(Math.floor(e.x), Math.floor(e.y)); // Pixel snap
+
+        if (e.state === "DEAD") {
+          ctx.rotate(Math.PI / 2);
+          ctx.translate(0, -16);
+        }
+
+        // Färger
+        let cSkin = "#f8b880";
+        let cVest = "#a00000";
+        let cPants = "#3030b0";
+        let cHat = "#d0d0d0";
+
+        if (e.type === 1) {
+          cVest = "#505050";
+          cPants = "#202020";
+          cHat = "#a05000";
+        }
+
+        // Byxor
+        ctx.fillStyle = cPants;
+        ctx.fillRect(4, 30, 6, 18); // V
+        ctx.fillRect(14, 30, 6, 18); // H
+
+        // Överkropp
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(4, 12, 16, 18); // Skjorta
+        ctx.fillStyle = cVest;
+        ctx.fillRect(4, 12, 4, 18); // Väst V
+        ctx.fillRect(16, 12, 4, 18); // Väst H
+
+        // Huvud
+        ctx.fillStyle = cSkin;
+        ctx.fillRect(7, 2, 10, 10);
+
+        // Ansikte (Pixel ögon)
+        ctx.fillStyle = "#000";
+        if (e.state === "DEAD") {
+          ctx.fillRect(8, 5, 2, 1);
+          ctx.fillRect(13, 5, 2, 1);
+          ctx.fillRect(9, 9, 5, 2);
+        } else {
+          ctx.fillRect(8, 4, 2, 2);
+          ctx.fillRect(13, 4, 2, 2);
+          ctx.fillRect(9, 9, 5, 1);
+        }
+
+        // Hatt
+        ctx.fillStyle = cHat;
+        ctx.fillRect(2, 0, 20, 2); // Brätte
+        ctx.fillRect(6, -4, 12, 4); // Topp
+
+        // Armar
+        if (e.state === "FIRE") {
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(20, 12, 8, 4); // Arm ut
+          ctx.fillStyle = "#000";
+          ctx.fillRect(28, 10, 4, 4); // Pistol
+
+          if (Math.random() > 0.5) {
+            ctx.fillStyle = "#ffff00";
+            ctx.fillRect(32, 9, 6, 6); // Flamma
+          }
+        } else {
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(0, 12, 4, 14); // Arm ner V
+          ctx.fillRect(20, 12, 4, 14); // Arm ner H
+        }
+
+        ctx.restore();
+      }
+
+      // --- LOOP ---
+      function loop() {
+        if (gameState !== "MENU") {
+          update();
+          draw();
+        }
+        requestAnimationFrame(loop);
+      }
+      loop();
+
+      // --- INPUT (Skalningshantering) ---
+      canvas.addEventListener("mousedown", (e) => {
+        if (gameState !== "MENU" && gameState !== "END") {
+          const rect = canvas.getBoundingClientRect();
+
+          // Räkna ut var vi klickade relativt canvasens visade storlek
+          const clientX = e.clientX - rect.left;
+          const clientY = e.clientY - rect.top;
+
+          // Skala om till 256x224
+          // Exempel: Om canvas visas som 768px bred, och vi klickar på 384px (mitten)
+          // Så blir scaleX = 256 / 768 = 0.333
+          // x = 384 * 0.333 = 128 (mitten av intern upplösning)
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+
+          const x = clientX * scaleX;
+          const y = clientY * scaleY;
+
+          checkHit(x, y);
+        }
+      });
+    </script>
+  </body>
+</html>
