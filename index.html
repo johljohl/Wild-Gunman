@@ -419,8 +419,14 @@
 
       // --- ENTITIES ---
       function createEnemy(type, startX, targetX) {
+        // Typer:
+        // 0: Standard (The Kid)
+        // 1: Short (El Bandito)
+        // 2: Poncho (Django)
+        // 3: Slim (Tall guy)
+        // 4: Suit (The Boss)
         return {
-          type: type, // 0 = Standard, 1 = Kort, 2 = Poncho
+          type: type,
           x: startX,
           y: 110, // Default för Game A/B
           w: 24,
@@ -467,17 +473,18 @@
         reactionLimit = baseReaction;
 
         if (gameMode === "A") {
-          // Game A: Ensam outlaw (Slumpmässig typ)
-          const type = Math.floor(Math.random() * 3);
+          // Game A: Ensam outlaw (Alla 5 typer möjliga)
+          const type = Math.floor(Math.random() * 5);
           enemies.push(createEnemy(type, -30, 116));
         } else if (gameMode === "B") {
-          // Game B: Två outlaws (Olika typer)
+          // Game B: Två outlaws (Slumpmässiga typer)
           reactionLimit += 200;
-          enemies.push(createEnemy(1, -30, 70)); // Kort från vänster
-          enemies.push(createEnemy(2, 280, 160)); // Poncho från höger
+          const type1 = Math.floor(Math.random() * 5);
+          const type2 = Math.floor(Math.random() * 5);
+          enemies.push(createEnemy(type1, -30, 70));
+          enemies.push(createEnemy(type2, 280, 160));
         } else if (gameMode === "C") {
-          gameState = "WAIT";
-          waitTimer = Date.now() + (Math.random() * 2000 + 1000);
+          gameState = "WALK_IN"; // Nu använder vi WALK_IN fasen för att animera in dem
 
           reactionLimit = Math.max(500, 1200 - level * 60);
 
@@ -495,10 +502,11 @@
 
           for (let i = 0; i < count; i++) {
             const pos = positions[i];
-            const type = Math.floor(Math.random() * 3); // Slumpmässig gubbe i fönstret
+            const type = Math.floor(Math.random() * 5); // Alla 5 typer
             let e = createEnemy(type, pos.x, pos.x);
             e.y = pos.y;
             e.state = "IDLE";
+            e.scale = 0; // Börja osynlig/långt borta
             enemies.push(e);
           }
         }
@@ -521,17 +529,30 @@
 
         if (gameState === "WALK_IN") {
           let allArrived = true;
-          enemies.forEach((e) => {
-            if (Math.abs(e.x - e.targetX) > 1.5) {
-              e.x += e.x < e.targetX ? 1.5 : -1.5;
-              allArrived = false;
-              if (now % 200 > 100) e.frame = 1;
-              else e.frame = 0;
-            } else {
-              e.frame = 0;
-              e.state = "IDLE";
-            }
-          });
+
+          if (gameMode === "C") {
+            // Game C: Väx fram ur mörkret
+            enemies.forEach((e) => {
+              if (e.scale < 1.0) {
+                e.scale += 0.05; // Växthastighet
+                if (e.scale > 1.0) e.scale = 1.0;
+                allArrived = false;
+              }
+            });
+          } else {
+            // Game A & B: Gå in från sidan
+            enemies.forEach((e) => {
+              if (Math.abs(e.x - e.targetX) > 1.5) {
+                e.x += e.x < e.targetX ? 1.5 : -1.5;
+                allArrived = false;
+                if (now % 200 > 100) e.frame = 1;
+                else e.frame = 0;
+              } else {
+                e.frame = 0;
+                e.state = "IDLE";
+              }
+            });
+          }
 
           if (allArrived) {
             gameState = "WAIT";
@@ -674,7 +695,6 @@
         }
 
         // Rita fiender (Sortera så att de längre fram ritas sist)
-        // Men i 2D utan djup spelar det mindre roll, men bra praxis
         enemies.forEach((e) => drawEnemy(e));
       }
 
@@ -751,11 +771,14 @@
         ctx.save();
         ctx.translate(Math.floor(e.x), Math.floor(e.y));
 
-        // --- SPEL C: FALLA BAKÅT (Skala ner mot mitten) ---
-        if (gameMode === "C" && e.state === "DEAD") {
-          ctx.translate(12, 24);
-          ctx.scale(e.scale, e.scale);
-          ctx.translate(-12, -24);
+        // --- SPEL C: SKALNING (In/Ut) ---
+        if (gameMode === "C") {
+          // Applicera skalning om den inte är 1 (används både för entré och död)
+          if (e.scale !== 1.0) {
+            ctx.translate(12, 24); // Mitten av 24x48 spriten
+            ctx.scale(e.scale, e.scale);
+            ctx.translate(-12, -24);
+          }
         }
         // --- SPEL A/B: RAMLA SIDA ---
         else if (e.state === "DEAD") {
@@ -763,12 +786,14 @@
           ctx.translate(0, -16);
         }
 
-        // Skugga vid död i Game C
-        let shadow = gameMode === "C" && e.state === "DEAD";
+        // Skugga vid död i Game C ELLER om de är långt borta (små)
+        let shadow = gameMode === "C" && (e.state === "DEAD" || e.scale < 0.9);
 
-        if (e.type === 0) drawStandard(e, shadow);
-        else if (e.type === 1) drawShort(e, shadow);
-        else if (e.type === 2) drawPoncho(e, shadow);
+        if (e.type === 0) drawStandard(e, shadow); // The Kid
+        else if (e.type === 1) drawShort(e, shadow); // El Bandito
+        else if (e.type === 2) drawPoncho(e, shadow); // Django
+        else if (e.type === 3) drawSlim(e, shadow); // NY: Slim
+        else if (e.type === 4) drawBoss(e, shadow); // NY: The Boss
 
         ctx.restore();
       }
@@ -783,14 +808,12 @@
         let cShirt = shadow ? "#808080" : "#fff";
 
         if (e.state === "WALK") {
-          // Profil (Går)
           const facingRight = e.targetX > e.x;
           if (!facingRight) {
             ctx.translate(24, 0);
             ctx.scale(-1, 1);
           }
 
-          // Ben
           ctx.fillStyle = cPants;
           if (e.frame === 0) {
             ctx.fillRect(8, 30, 6, 18);
@@ -799,37 +822,29 @@
             ctx.fillRect(6, 30, 6, 18);
             ctx.fillRect(14, 28, 6, 16);
           }
-          // Kropp
           ctx.fillStyle = cShirt;
           ctx.fillRect(8, 12, 10, 18);
           ctx.fillStyle = cVest;
           ctx.fillRect(8, 12, 6, 18);
-          // Huvud
           ctx.fillStyle = cSkin;
           ctx.fillRect(8, 2, 9, 10);
-          // Hatt
           ctx.fillStyle = cHat;
           ctx.fillRect(4, 0, 16, 2);
           ctx.fillRect(8, -4, 10, 4);
-          // Arm
           ctx.fillStyle = cShirt;
           if (e.frame === 0) ctx.fillRect(10, 14, 4, 14);
           else ctx.fillRect(12, 12, 4, 14);
         } else {
-          // Framifrån (Idle/Fire/Dead)
           ctx.fillStyle = cPants;
           ctx.fillRect(4, 30, 6, 18);
           ctx.fillRect(14, 30, 6, 18);
-
           ctx.fillStyle = cShirt;
           ctx.fillRect(4, 12, 16, 18);
           ctx.fillStyle = cVest;
           ctx.fillRect(4, 12, 4, 18);
           ctx.fillRect(16, 12, 4, 18);
-
           ctx.fillStyle = cSkin;
           ctx.fillRect(7, 2, 10, 10);
-
           ctx.fillStyle = "#000";
           if (e.state === "DEAD") {
             ctx.fillRect(8, 5, 2, 1);
@@ -840,16 +855,14 @@
             ctx.fillRect(13, 4, 2, 2);
             ctx.fillRect(9, 9, 5, 1);
           }
-
           ctx.fillStyle = cHat;
           ctx.fillRect(2, 0, 20, 2);
           ctx.fillRect(6, -4, 12, 4);
-
           if (e.state === "FIRE") {
             ctx.fillStyle = cShirt;
             ctx.fillRect(20, 12, 8, 4);
             ctx.fillStyle = "#000";
-            ctx.fillRect(28, 10, 6, 4); // Pistol
+            ctx.fillRect(28, 10, 6, 4);
             if (Math.random() > 0.5) {
               ctx.fillStyle = "#ff0";
               ctx.fillRect(34, 9, 6, 6);
@@ -869,15 +882,12 @@
         let cHat = shadow ? "#302010" : "#604020";
         let cShirt = shadow ? "#602020" : "#c04040";
 
-        // Kortare och bredare
         if (e.state === "WALK") {
           const facingRight = e.targetX > e.x;
           if (!facingRight) {
             ctx.translate(24, 0);
             ctx.scale(-1, 1);
           }
-
-          // Korta ben
           ctx.fillStyle = cPants;
           if (e.frame === 0) {
             ctx.fillRect(6, 38, 6, 10);
@@ -886,40 +896,29 @@
             ctx.fillRect(4, 38, 6, 10);
             ctx.fillRect(12, 36, 6, 10);
           }
-
-          // Bred kropp
           ctx.fillStyle = cShirt;
           ctx.fillRect(4, 18, 14, 20);
           ctx.fillStyle = cVest;
           ctx.fillRect(4, 18, 8, 20);
-
-          // Huvud (Lågt)
           ctx.fillStyle = cSkin;
           ctx.fillRect(6, 8, 10, 10);
-
-          // Stor hatt
           ctx.fillStyle = cHat;
           ctx.fillRect(0, 6, 20, 2);
           ctx.fillRect(4, 2, 14, 4);
-
           ctx.fillStyle = cShirt;
           ctx.fillRect(8, 22, 4, 10);
         } else {
           ctx.fillStyle = cPants;
           ctx.fillRect(2, 38, 8, 10);
           ctx.fillRect(14, 38, 8, 10);
-
           ctx.fillStyle = cShirt;
           ctx.fillRect(2, 18, 20, 20);
           ctx.fillStyle = cVest;
           ctx.fillRect(2, 18, 6, 20);
           ctx.fillRect(16, 18, 6, 20);
-
           ctx.fillStyle = cSkin;
           ctx.fillRect(7, 8, 10, 10);
-
           ctx.fillStyle = "#000";
-          // Mustasch
           ctx.fillRect(8, 15, 8, 2);
           if (e.state !== "DEAD") {
             ctx.fillRect(8, 10, 2, 2);
@@ -928,11 +927,9 @@
             ctx.fillRect(8, 11, 2, 1);
             ctx.fillRect(14, 11, 2, 1);
           }
-
           ctx.fillStyle = cHat;
           ctx.fillRect(0, 6, 24, 2);
           ctx.fillRect(4, 2, 16, 4);
-
           if (e.state === "FIRE") {
             ctx.fillStyle = cShirt;
             ctx.fillRect(22, 22, 6, 4);
@@ -952,9 +949,9 @@
 
       function drawPoncho(e, shadow) {
         let cSkin = shadow ? "#805030" : "#d09060";
-        let cPoncho = shadow ? "#405020" : "#80a040"; // Grön poncho
-        let cPants = shadow ? "#404040" : "#f0f0f0"; // Vita byxor
-        let cHat = shadow ? "#503010" : "#a06020"; // Sombrero
+        let cPoncho = shadow ? "#405020" : "#80a040";
+        let cPants = shadow ? "#404040" : "#f0f0f0";
+        let cHat = shadow ? "#503010" : "#a06020";
 
         if (e.state === "WALK") {
           const facingRight = e.targetX > e.x;
@@ -962,7 +959,6 @@
             ctx.translate(24, 0);
             ctx.scale(-1, 1);
           }
-
           ctx.fillStyle = cPants;
           if (e.frame === 0) {
             ctx.fillRect(8, 36, 6, 12);
@@ -971,8 +967,6 @@
             ctx.fillRect(6, 36, 6, 12);
             ctx.fillRect(14, 34, 6, 12);
           }
-
-          // Poncho (Triangel-ish)
           ctx.fillStyle = cPoncho;
           ctx.beginPath();
           ctx.moveTo(10, 10);
@@ -980,11 +974,8 @@
           ctx.lineTo(18, 30);
           ctx.lineTo(14, 10);
           ctx.fill();
-
           ctx.fillStyle = cSkin;
           ctx.fillRect(9, 4, 8, 8);
-
-          // Sombrero
           ctx.fillStyle = cHat;
           ctx.fillRect(2, 2, 20, 2);
           ctx.fillRect(8, -2, 8, 4);
@@ -992,18 +983,14 @@
           ctx.fillStyle = cPants;
           ctx.fillRect(6, 36, 4, 12);
           ctx.fillRect(14, 36, 4, 12);
-
-          // Poncho Fram
           ctx.fillStyle = cPoncho;
           ctx.beginPath();
           ctx.moveTo(12, 10);
           ctx.lineTo(0, 32);
           ctx.lineTo(24, 32);
           ctx.fill();
-
           ctx.fillStyle = cSkin;
           ctx.fillRect(8, 4, 8, 8);
-
           ctx.fillStyle = "#000";
           if (e.state !== "DEAD") {
             ctx.fillRect(9, 6, 2, 2);
@@ -1012,14 +999,10 @@
             ctx.fillRect(9, 7, 2, 1);
             ctx.fillRect(13, 7, 2, 1);
           }
-
-          // Sombrero
           ctx.fillStyle = cHat;
           ctx.fillRect(0, 2, 24, 2);
           ctx.fillRect(8, -2, 8, 4);
-
           if (e.state === "FIRE") {
-            // Arm kommer ut ur ponchon
             ctx.fillStyle = cSkin;
             ctx.fillRect(20, 20, 6, 4);
             ctx.fillStyle = "#000";
@@ -1028,6 +1011,178 @@
               ctx.fillStyle = "#ff0";
               ctx.fillRect(32, 17, 6, 6);
             }
+          }
+        }
+      }
+
+      function drawSlim(e, shadow) {
+        // Lång, smal, ljus skjorta
+        let cSkin = shadow ? "#805030" : "#f0b080";
+        let cVest = shadow ? "#303030" : "#606060"; // Grå väst
+        let cPants = shadow ? "#101030" : "#202050"; // Mörkblå byxor
+        let cHat = shadow ? "#403020" : "#806040"; // Brun hatt
+        let cShirt = shadow ? "#607080" : "#a0c0e0"; // Ljusblå skjorta
+
+        if (e.state === "WALK") {
+          const facingRight = e.targetX > e.x;
+          if (!facingRight) {
+            ctx.translate(24, 0);
+            ctx.scale(-1, 1);
+          }
+
+          // Långa ben
+          ctx.fillStyle = cPants;
+          if (e.frame === 0) {
+            ctx.fillRect(8, 28, 4, 20);
+            ctx.fillRect(4, 26, 4, 18);
+          } else {
+            ctx.fillRect(6, 28, 4, 20);
+            ctx.fillRect(12, 26, 4, 18);
+          }
+
+          // Smal kropp
+          ctx.fillStyle = cShirt;
+          ctx.fillRect(8, 8, 8, 20);
+          ctx.fillStyle = cVest;
+          ctx.fillRect(8, 8, 4, 20);
+
+          // Huvud (avlångt)
+          ctx.fillStyle = cSkin;
+          ctx.fillRect(8, -2, 8, 10);
+
+          // Hatt
+          ctx.fillStyle = cHat;
+          ctx.fillRect(4, -4, 16, 2);
+          ctx.fillRect(8, -8, 8, 4);
+
+          // Arm
+          ctx.fillStyle = cShirt;
+          if (e.frame === 0) ctx.fillRect(10, 10, 2, 16);
+          else ctx.fillRect(12, 8, 2, 16);
+        } else {
+          ctx.fillStyle = cPants;
+          ctx.fillRect(6, 28, 4, 20);
+          ctx.fillRect(14, 28, 4, 20);
+          ctx.fillStyle = cShirt;
+          ctx.fillRect(6, 8, 12, 20);
+          ctx.fillStyle = cVest;
+          ctx.fillRect(6, 8, 4, 20);
+          ctx.fillRect(14, 8, 4, 20);
+          ctx.fillStyle = cSkin;
+          ctx.fillRect(8, -2, 8, 10);
+
+          ctx.fillStyle = "#000"; // Skäggstubb
+          ctx.fillRect(9, 6, 6, 2);
+          if (e.state === "DEAD") {
+            ctx.fillRect(9, 0, 2, 1);
+            ctx.fillRect(13, 0, 2, 1);
+          } else {
+            ctx.fillRect(9, 0, 2, 2);
+            ctx.fillRect(13, 0, 2, 2);
+          }
+
+          ctx.fillStyle = cHat;
+          ctx.fillRect(4, -4, 16, 2);
+          ctx.fillRect(8, -8, 8, 4);
+
+          if (e.state === "FIRE") {
+            ctx.fillStyle = cShirt;
+            ctx.fillRect(18, 10, 8, 4);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(26, 8, 6, 4);
+            if (Math.random() > 0.5) {
+              ctx.fillStyle = "#ff0";
+              ctx.fillRect(32, 7, 6, 6);
+            }
+          } else {
+            ctx.fillStyle = cShirt;
+            ctx.fillRect(2, 10, 4, 16);
+            ctx.fillRect(18, 10, 4, 16);
+          }
+        }
+      }
+
+      function drawBoss(e, shadow) {
+        // Svart kostym, formell
+        let cSkin = shadow ? "#805030" : "#f8b880";
+        let cSuit = shadow ? "#101010" : "#222"; // Svart kostym
+        let cTie = shadow ? "#400000" : "#800000"; // Röd slips
+        let cHat = shadow ? "#101010" : "#111"; // Svart hatt
+        let cShirt = shadow ? "#505050" : "#fff"; // Vit skjorta
+
+        if (e.state === "WALK") {
+          const facingRight = e.targetX > e.x;
+          if (!facingRight) {
+            ctx.translate(24, 0);
+            ctx.scale(-1, 1);
+          }
+
+          ctx.fillStyle = cSuit;
+          // Ben
+          if (e.frame === 0) {
+            ctx.fillRect(8, 30, 6, 18);
+            ctx.fillRect(2, 28, 6, 16);
+          } else {
+            ctx.fillRect(6, 30, 6, 18);
+            ctx.fillRect(14, 28, 6, 16);
+          }
+
+          // Kropp (Kavaj)
+          ctx.fillRect(6, 12, 12, 20);
+          ctx.fillStyle = cShirt;
+          ctx.fillRect(12, 12, 2, 10); // Skjorta syns lite
+
+          ctx.fillStyle = cSkin;
+          ctx.fillRect(8, 2, 9, 10);
+
+          ctx.fillStyle = cHat;
+          ctx.fillRect(4, 0, 16, 2);
+          ctx.fillRect(8, -4, 10, 4);
+
+          ctx.fillStyle = cSuit; // Arm
+          if (e.frame === 0) ctx.fillRect(10, 14, 4, 14);
+          else ctx.fillRect(12, 12, 4, 14);
+        } else {
+          ctx.fillStyle = cSuit;
+          ctx.fillRect(4, 30, 6, 18);
+          ctx.fillRect(14, 30, 6, 18);
+          // Kavaj öppen
+          ctx.fillRect(2, 12, 20, 20);
+          ctx.fillStyle = cShirt;
+          ctx.fillRect(10, 12, 4, 20);
+          ctx.fillStyle = cTie;
+          ctx.fillRect(11, 14, 2, 10); // Slips
+
+          ctx.fillStyle = cSkin;
+          ctx.fillRect(7, 2, 10, 10);
+
+          ctx.fillStyle = "#000"; // Mustasch (tunn)
+          ctx.fillRect(9, 9, 6, 1);
+          if (e.state === "DEAD") {
+            ctx.fillRect(8, 5, 2, 1);
+            ctx.fillRect(13, 5, 2, 1);
+          } else {
+            ctx.fillRect(8, 4, 2, 2);
+            ctx.fillRect(13, 4, 2, 2);
+          }
+
+          ctx.fillStyle = cHat;
+          ctx.fillRect(2, 0, 20, 2);
+          ctx.fillRect(6, -4, 12, 4);
+
+          if (e.state === "FIRE") {
+            ctx.fillStyle = cSuit;
+            ctx.fillRect(20, 12, 8, 4);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(28, 10, 6, 4);
+            if (Math.random() > 0.5) {
+              ctx.fillStyle = "#ff0";
+              ctx.fillRect(34, 9, 6, 6);
+            }
+          } else {
+            ctx.fillStyle = cSuit;
+            ctx.fillRect(0, 12, 4, 14);
+            ctx.fillRect(20, 12, 4, 14);
           }
         }
       }
