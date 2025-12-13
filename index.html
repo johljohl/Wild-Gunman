@@ -31,16 +31,15 @@
         position: relative;
 
         /* --- MOBILANPASSNING START --- */
-        /* Istället för fasta pixlar, använd responsiv storlek */
-        width: 95%; /* Ta upp det mesta av bredden på små skärmar */
-        max-width: 768px; /* Men bli inte större än desktop-storlek */
-        aspect-ratio: 256/224; /* Behåll det klassiska bildförhållandet */
-        max-height: 90vh; /* Bli inte högre än skärmen */
+        width: 95%;
+        max-width: 768px;
+        aspect-ratio: 256/224;
+        max-height: 90vh;
         /* --- MOBILANPASSNING SLUT --- */
 
         box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
         background: #000;
-        margin: auto; /* Centrera */
+        margin: auto;
       }
 
       canvas {
@@ -63,11 +62,11 @@
           rgba(255, 255, 255, 0),
           rgba(255, 255, 255, 0) 50%,
           rgba(0, 0, 0, 0.3) 50%,
-          /* Mörka linjer */ rgba(0, 0, 0, 0.3)
+          rgba(0, 0, 0, 0.3)
         );
-        background-size: 100% 4px; /* Storlek på linjerna */
-        pointer-events: none; /* Klick går igenom */
-        z-index: 100; /* ÄNDRAT: Högst z-index för att täcka även startskärmen */
+        background-size: 100% 4px;
+        pointer-events: none;
+        z-index: 100;
       }
 
       /* --- UI LAGER --- */
@@ -99,7 +98,7 @@
         color: #adff2f;
         font-size: 16px;
         text-transform: uppercase;
-        padding: 2% 4%; /* Procentuell padding för skalning */
+        padding: 2% 4%;
         box-sizing: border-box;
         border-bottom: 4px solid #000;
         position: absolute;
@@ -121,7 +120,7 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        min-width: 15%; /* Responsiv bredd */
+        min-width: 15%;
       }
 
       .hud-label {
@@ -142,11 +141,11 @@
       #start-screen {
         background-color: #000;
         pointer-events: auto;
-        z-index: 80; /* Lägre än scanlines (100) nu */
+        z-index: 80;
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding-top: 10%; /* Responsiv top padding */
+        padding-top: 10%;
       }
 
       .logo-main {
@@ -173,9 +172,9 @@
         gap: 20px;
         font-size: 18px;
         cursor: pointer;
-        width: 80%; /* Bredare klickytor på mobil */
+        width: 80%;
         max-width: 450px;
-        justify-content: center; /* Centrera texten */
+        justify-content: center;
       }
 
       .menu-label {
@@ -190,7 +189,6 @@
         text-align: left;
       }
 
-      /* Ta bort hover-pil på touch-enheter för att undvika att den fastnar */
       @media (hover: hover) {
         .menu-row:hover .menu-label::before {
           content: "►";
@@ -212,7 +210,6 @@
         color: #d8ac50;
       }
 
-      /* --- MEDIA QUERIES FÖR MOBIL (Små skärmar) --- */
       @media (max-width: 600px) {
         .logo-main {
           font-size: 28px;
@@ -245,14 +242,14 @@
       /* --- SPELMEDDELANDEN --- */
       #message-overlay {
         position: absolute;
-        top: 25%; /* Flytta upp den till himlen (var 50%) */
+        top: 25%;
         left: 50%;
         transform: translate(-50%, -50%);
         text-align: center;
         display: none;
-        z-index: 90; /* Högre än startskärm, lägre än scanlines */
+        z-index: 90;
         width: 100%;
-        pointer-events: none; /* VIKTIGT: Låt klick gå igenom texten! */
+        pointer-events: none;
       }
 
       .big-msg {
@@ -315,7 +312,6 @@
         <div class="logo-main">WILD<br />GUNMAN</div>
 
         <div class="menu-container">
-          <!-- Ontouchstart lagt till för snabbare respons i menyn -->
           <div
             class="menu-row"
             onclick="startGame('A')"
@@ -332,7 +328,11 @@
             <div class="menu-label">GAME B</div>
             <div class="menu-desc">2 OUTLAWS</div>
           </div>
-          <div class="menu-row" style="opacity: 0.7; cursor: default">
+          <div
+            class="menu-row"
+            onclick="startGame('C')"
+            ontouchstart="startGame('C')"
+          >
             <div class="menu-label">GAME C</div>
             <div class="menu-desc">GANG</div>
           </div>
@@ -370,7 +370,6 @@
       let enemies = [];
       let playerReactionTime = 0;
 
-      // Ny variabel för att förhindra klick vid start av runda
       let inputLockTimer = 0;
 
       // --- AUDIO ---
@@ -421,21 +420,21 @@
       // --- ENTITIES ---
       function createEnemy(type, startX, targetX) {
         return {
-          type: type,
+          type: type, // 0 = Standard, 1 = Kort, 2 = Poncho
           x: startX,
-          y: 110,
+          y: 110, // Default för Game A/B
           w: 24,
           h: 48,
           targetX: targetX,
           frame: 0,
           state: "WALK",
           timer: 0,
+          scale: 1.0, // För animation
         };
       }
 
       // --- LOGIK ---
       function startGame(mode) {
-        // Förhindra dubbelklick från touch + click
         if (gameState !== "MENU") return;
 
         gameMode = mode;
@@ -448,7 +447,6 @@
         document.getElementById("hud-top").style.display = "flex";
         document.getElementById("hud-bottom").style.display = "flex";
 
-        // Starta ljudkontext vid första interaktion (viktigt för mobiler)
         if (audioCtx.state === "suspended") audioCtx.resume();
 
         resetRound();
@@ -460,7 +458,6 @@
         playerReactionTime = 0;
         updateUI();
 
-        // Lås input en kort stund för att förhindra "ghost clicks" från menyn
         inputLockTimer = Date.now() + 500;
 
         enemies = [];
@@ -470,16 +467,57 @@
         reactionLimit = baseReaction;
 
         if (gameMode === "A") {
-          enemies.push(createEnemy(0, -30, 116));
-        } else {
+          // Game A: Ensam outlaw (Slumpmässig typ)
+          const type = Math.floor(Math.random() * 3);
+          enemies.push(createEnemy(type, -30, 116));
+        } else if (gameMode === "B") {
+          // Game B: Två outlaws (Olika typer)
           reactionLimit += 200;
-          enemies.push(createEnemy(1, -30, 70));
-          enemies.push(createEnemy(0, 280, 160));
+          enemies.push(createEnemy(1, -30, 70)); // Kort från vänster
+          enemies.push(createEnemy(2, 280, 160)); // Poncho från höger
+        } else if (gameMode === "C") {
+          gameState = "WAIT";
+          waitTimer = Date.now() + (Math.random() * 2000 + 1000);
+
+          reactionLimit = Math.max(500, 1200 - level * 60);
+
+          const count = Math.random() > 0.6 || level > 5 ? 2 : 1;
+
+          const positions = [
+            { x: 45, y: 45 }, // Fönster V Uppe
+            { x: 180, y: 45 }, // Fönster H Uppe
+            { x: 45, y: 115 }, // Fönster V Nere
+            { x: 180, y: 115 }, // Fönster H Nere
+            { x: 116, y: 115 }, // Dörr
+          ];
+
+          positions.sort(() => Math.random() - 0.5);
+
+          for (let i = 0; i < count; i++) {
+            const pos = positions[i];
+            const type = Math.floor(Math.random() * 3); // Slumpmässig gubbe i fönstret
+            let e = createEnemy(type, pos.x, pos.x);
+            e.y = pos.y;
+            e.state = "IDLE";
+            enemies.push(e);
+          }
         }
       }
 
       function update() {
         const now = Date.now();
+
+        // --- ANIMERA FALL BAKÅT FÖR GAME C ---
+        if (gameMode === "C") {
+          enemies.forEach((e) => {
+            if (e.state === "DEAD") {
+              if (e.scale > 0) {
+                e.scale -= 0.05;
+                if (e.scale < 0) e.scale = 0;
+              }
+            }
+          });
+        }
 
         if (gameState === "WALK_IN") {
           let allArrived = true;
@@ -491,7 +529,7 @@
               else e.frame = 0;
             } else {
               e.frame = 0;
-              e.state = "IDLE"; // Detta vänder dem framåt
+              e.state = "IDLE";
             }
           });
 
@@ -524,15 +562,12 @@
       }
 
       function handleInput(x, y) {
-        // Ignorera input om vi är i "lockout" perioden (precis vid start)
         if (Date.now() < inputLockTimer) return;
 
-        // Om de fortfarande går in, gör ingenting (var snäll mot mobilanvändare)
         if (gameState === "WALK_IN") {
           return;
         }
 
-        // Endast straffa om man väntar på "FIRE"
         if (gameState === "WAIT") {
           gameState = "END";
           const msg = document.getElementById("game-msg");
@@ -554,7 +589,7 @@
           let hitAny = false;
           enemies.forEach((e) => {
             if (e.state !== "DEAD") {
-              // Generösare hitbox för touch (+15px istället för +10)
+              // Generösare hitbox för touch
               if (
                 x >= e.x - 15 &&
                 x <= e.x + e.w + 15 &&
@@ -632,14 +667,61 @@
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        ctx.fillStyle = "#202090";
-        ctx.fillRect(0, 0, canvas.width, 140);
+        if (gameMode === "C") {
+          drawSaloon();
+        } else {
+          drawDesert();
+        }
 
-        ctx.fillStyle = "#a88440";
+        // Rita fiender (Sortera så att de längre fram ritas sist)
+        // Men i 2D utan djup spelar det mindre roll, men bra praxis
+        enemies.forEach((e) => drawEnemy(e));
+      }
+
+      function drawDesert() {
+        ctx.fillStyle = "#202090"; // Himmel
+        ctx.fillRect(0, 0, canvas.width, 140);
+        ctx.fillStyle = "#a88440"; // Mark
         ctx.fillRect(0, 140, canvas.width, 84);
 
         drawScenery();
-        enemies.forEach((e) => drawEnemy(e));
+      }
+
+      function drawSaloon() {
+        // Bakgrundsfärg (om något syns bakom)
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Saloon vägg
+        ctx.fillStyle = "#e08070";
+        ctx.fillRect(10, 10, 236, 204);
+
+        // Detaljer
+        ctx.fillStyle = "#b05040";
+        for (let y = 20; y < 214; y += 10) {
+          ctx.fillRect(10, y, 236, 1);
+        }
+
+        // Fönster & Dörr (Svarta hål)
+        ctx.fillStyle = "#000";
+
+        // Fönster uppe
+        ctx.fillRect(40, 40, 34, 58);
+        ctx.fillRect(175, 40, 34, 58);
+
+        // Fönster nere
+        ctx.fillRect(40, 110, 34, 58);
+        ctx.fillRect(175, 110, 34, 58);
+
+        // Dörr
+        ctx.fillRect(108, 110, 40, 104);
+
+        // Skylt
+        ctx.fillStyle = "#603010";
+        ctx.fillRect(90, 70, 76, 20);
+        ctx.fillStyle = "#fff";
+        ctx.font = "8px 'Press Start 2P'";
+        ctx.fillText("SALOON", 100, 84);
       }
 
       function drawScenery() {
@@ -669,89 +751,85 @@
         ctx.save();
         ctx.translate(Math.floor(e.x), Math.floor(e.y));
 
-        if (e.state === "DEAD") {
+        // --- SPEL C: FALLA BAKÅT (Skala ner mot mitten) ---
+        if (gameMode === "C" && e.state === "DEAD") {
+          ctx.translate(12, 24);
+          ctx.scale(e.scale, e.scale);
+          ctx.translate(-12, -24);
+        }
+        // --- SPEL A/B: RAMLA SIDA ---
+        else if (e.state === "DEAD") {
           ctx.rotate(Math.PI / 2);
           ctx.translate(0, -16);
         }
 
-        let cSkin = "#f8b880";
-        let cVest = "#a00000";
-        let cPants = "#3030b0";
-        let cHat = "#d0d0d0";
+        // Skugga vid död i Game C
+        let shadow = gameMode === "C" && e.state === "DEAD";
 
-        if (e.type === 1) {
-          cVest = "#505050";
-          cPants = "#202020";
-          cHat = "#a05000";
-        }
+        if (e.type === 0) drawStandard(e, shadow);
+        else if (e.type === 1) drawShort(e, shadow);
+        else if (e.type === 2) drawPoncho(e, shadow);
+
+        ctx.restore();
+      }
+
+      // --- RITNING AV OLIKA TYPER ---
+
+      function drawStandard(e, shadow) {
+        let cSkin = shadow ? "#805030" : "#f8b880";
+        let cVest = shadow ? "#500000" : "#a00000";
+        let cPants = shadow ? "#101060" : "#3030b0";
+        let cHat = shadow ? "#808080" : "#d0d0d0";
+        let cShirt = shadow ? "#808080" : "#fff";
 
         if (e.state === "WALK") {
-          // --- RITA PROFIL (GÅR) ---
+          // Profil (Går)
           const facingRight = e.targetX > e.x;
-
-          ctx.save();
           if (!facingRight) {
-            // Spegla om de går åt vänster
             ctx.translate(24, 0);
             ctx.scale(-1, 1);
           }
 
-          // Ben (Animerade)
+          // Ben
           ctx.fillStyle = cPants;
           if (e.frame === 0) {
-            ctx.fillRect(8, 30, 6, 18); // Ben 1
-            ctx.fillRect(2, 28, 6, 16); // Ben 2
+            ctx.fillRect(8, 30, 6, 18);
+            ctx.fillRect(2, 28, 6, 16);
           } else {
             ctx.fillRect(6, 30, 6, 18);
             ctx.fillRect(14, 28, 6, 16);
           }
-
-          // Kropp (Profil)
-          ctx.fillStyle = "#fff";
+          // Kropp
+          ctx.fillStyle = cShirt;
           ctx.fillRect(8, 12, 10, 18);
           ctx.fillStyle = cVest;
           ctx.fillRect(8, 12, 6, 18);
-
-          // Huvud (Profil)
+          // Huvud
           ctx.fillStyle = cSkin;
           ctx.fillRect(8, 2, 9, 10);
-          // Näsa
-          ctx.fillRect(17, 6, 2, 2);
-
           // Hatt
           ctx.fillStyle = cHat;
           ctx.fillRect(4, 0, 16, 2);
           ctx.fillRect(8, -4, 10, 4);
-
-          // Arm (Svängande)
-          ctx.fillStyle = "#fff";
-          if (e.frame === 0) {
-            ctx.fillRect(10, 14, 4, 14);
-          } else {
-            ctx.fillRect(12, 12, 4, 14);
-          }
-
-          ctx.restore();
+          // Arm
+          ctx.fillStyle = cShirt;
+          if (e.frame === 0) ctx.fillRect(10, 14, 4, 14);
+          else ctx.fillRect(12, 12, 4, 14);
         } else {
-          // --- RITA FRAMIFRÅN (IDLE/FIRE/DEAD) ---
-
-          // Ben
+          // Framifrån (Idle/Fire/Dead)
           ctx.fillStyle = cPants;
           ctx.fillRect(4, 30, 6, 18);
           ctx.fillRect(14, 30, 6, 18);
 
-          // Överkropp
-          ctx.fillStyle = "#fff";
+          ctx.fillStyle = cShirt;
           ctx.fillRect(4, 12, 16, 18);
           ctx.fillStyle = cVest;
           ctx.fillRect(4, 12, 4, 18);
           ctx.fillRect(16, 12, 4, 18);
 
-          // Huvud
           ctx.fillStyle = cSkin;
           ctx.fillRect(7, 2, 10, 10);
 
-          // Ansikte
           ctx.fillStyle = "#000";
           if (e.state === "DEAD") {
             ctx.fillRect(8, 5, 2, 1);
@@ -763,31 +841,195 @@
             ctx.fillRect(9, 9, 5, 1);
           }
 
-          // Hatt
           ctx.fillStyle = cHat;
           ctx.fillRect(2, 0, 20, 2);
           ctx.fillRect(6, -4, 12, 4);
 
-          // Armar
           if (e.state === "FIRE") {
-            ctx.fillStyle = "#fff";
+            ctx.fillStyle = cShirt;
             ctx.fillRect(20, 12, 8, 4);
-            ctx.fillRect(28, 12, 4, 2); // Hand
             ctx.fillStyle = "#000";
             ctx.fillRect(28, 10, 6, 4); // Pistol
-
             if (Math.random() > 0.5) {
-              ctx.fillStyle = "#ffff00";
-              ctx.fillRect(34, 9, 6, 6); // Flamma
+              ctx.fillStyle = "#ff0";
+              ctx.fillRect(34, 9, 6, 6);
             }
           } else {
-            ctx.fillStyle = "#fff";
+            ctx.fillStyle = cShirt;
             ctx.fillRect(0, 12, 4, 14);
             ctx.fillRect(20, 12, 4, 14);
           }
         }
+      }
 
-        ctx.restore();
+      function drawShort(e, shadow) {
+        let cSkin = shadow ? "#806040" : "#f8c8a0";
+        let cVest = shadow ? "#303030" : "#505050";
+        let cPants = shadow ? "#101010" : "#202020";
+        let cHat = shadow ? "#302010" : "#604020";
+        let cShirt = shadow ? "#602020" : "#c04040";
+
+        // Kortare och bredare
+        if (e.state === "WALK") {
+          const facingRight = e.targetX > e.x;
+          if (!facingRight) {
+            ctx.translate(24, 0);
+            ctx.scale(-1, 1);
+          }
+
+          // Korta ben
+          ctx.fillStyle = cPants;
+          if (e.frame === 0) {
+            ctx.fillRect(6, 38, 6, 10);
+            ctx.fillRect(0, 36, 6, 10);
+          } else {
+            ctx.fillRect(4, 38, 6, 10);
+            ctx.fillRect(12, 36, 6, 10);
+          }
+
+          // Bred kropp
+          ctx.fillStyle = cShirt;
+          ctx.fillRect(4, 18, 14, 20);
+          ctx.fillStyle = cVest;
+          ctx.fillRect(4, 18, 8, 20);
+
+          // Huvud (Lågt)
+          ctx.fillStyle = cSkin;
+          ctx.fillRect(6, 8, 10, 10);
+
+          // Stor hatt
+          ctx.fillStyle = cHat;
+          ctx.fillRect(0, 6, 20, 2);
+          ctx.fillRect(4, 2, 14, 4);
+
+          ctx.fillStyle = cShirt;
+          ctx.fillRect(8, 22, 4, 10);
+        } else {
+          ctx.fillStyle = cPants;
+          ctx.fillRect(2, 38, 8, 10);
+          ctx.fillRect(14, 38, 8, 10);
+
+          ctx.fillStyle = cShirt;
+          ctx.fillRect(2, 18, 20, 20);
+          ctx.fillStyle = cVest;
+          ctx.fillRect(2, 18, 6, 20);
+          ctx.fillRect(16, 18, 6, 20);
+
+          ctx.fillStyle = cSkin;
+          ctx.fillRect(7, 8, 10, 10);
+
+          ctx.fillStyle = "#000";
+          // Mustasch
+          ctx.fillRect(8, 15, 8, 2);
+          if (e.state !== "DEAD") {
+            ctx.fillRect(8, 10, 2, 2);
+            ctx.fillRect(14, 10, 2, 2);
+          } else {
+            ctx.fillRect(8, 11, 2, 1);
+            ctx.fillRect(14, 11, 2, 1);
+          }
+
+          ctx.fillStyle = cHat;
+          ctx.fillRect(0, 6, 24, 2);
+          ctx.fillRect(4, 2, 16, 4);
+
+          if (e.state === "FIRE") {
+            ctx.fillStyle = cShirt;
+            ctx.fillRect(22, 22, 6, 4);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(28, 20, 6, 4);
+            if (Math.random() > 0.5) {
+              ctx.fillStyle = "#ff0";
+              ctx.fillRect(34, 19, 6, 6);
+            }
+          } else {
+            ctx.fillStyle = cShirt;
+            ctx.fillRect(-2, 22, 4, 12);
+            ctx.fillRect(22, 22, 4, 12);
+          }
+        }
+      }
+
+      function drawPoncho(e, shadow) {
+        let cSkin = shadow ? "#805030" : "#d09060";
+        let cPoncho = shadow ? "#405020" : "#80a040"; // Grön poncho
+        let cPants = shadow ? "#404040" : "#f0f0f0"; // Vita byxor
+        let cHat = shadow ? "#503010" : "#a06020"; // Sombrero
+
+        if (e.state === "WALK") {
+          const facingRight = e.targetX > e.x;
+          if (!facingRight) {
+            ctx.translate(24, 0);
+            ctx.scale(-1, 1);
+          }
+
+          ctx.fillStyle = cPants;
+          if (e.frame === 0) {
+            ctx.fillRect(8, 36, 6, 12);
+            ctx.fillRect(2, 34, 6, 12);
+          } else {
+            ctx.fillRect(6, 36, 6, 12);
+            ctx.fillRect(14, 34, 6, 12);
+          }
+
+          // Poncho (Triangel-ish)
+          ctx.fillStyle = cPoncho;
+          ctx.beginPath();
+          ctx.moveTo(10, 10);
+          ctx.lineTo(2, 30);
+          ctx.lineTo(18, 30);
+          ctx.lineTo(14, 10);
+          ctx.fill();
+
+          ctx.fillStyle = cSkin;
+          ctx.fillRect(9, 4, 8, 8);
+
+          // Sombrero
+          ctx.fillStyle = cHat;
+          ctx.fillRect(2, 2, 20, 2);
+          ctx.fillRect(8, -2, 8, 4);
+        } else {
+          ctx.fillStyle = cPants;
+          ctx.fillRect(6, 36, 4, 12);
+          ctx.fillRect(14, 36, 4, 12);
+
+          // Poncho Fram
+          ctx.fillStyle = cPoncho;
+          ctx.beginPath();
+          ctx.moveTo(12, 10);
+          ctx.lineTo(0, 32);
+          ctx.lineTo(24, 32);
+          ctx.fill();
+
+          ctx.fillStyle = cSkin;
+          ctx.fillRect(8, 4, 8, 8);
+
+          ctx.fillStyle = "#000";
+          if (e.state !== "DEAD") {
+            ctx.fillRect(9, 6, 2, 2);
+            ctx.fillRect(13, 6, 2, 2);
+          } else {
+            ctx.fillRect(9, 7, 2, 1);
+            ctx.fillRect(13, 7, 2, 1);
+          }
+
+          // Sombrero
+          ctx.fillStyle = cHat;
+          ctx.fillRect(0, 2, 24, 2);
+          ctx.fillRect(8, -2, 8, 4);
+
+          if (e.state === "FIRE") {
+            // Arm kommer ut ur ponchon
+            ctx.fillStyle = cSkin;
+            ctx.fillRect(20, 20, 6, 4);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(26, 18, 6, 4);
+            if (Math.random() > 0.5) {
+              ctx.fillStyle = "#ff0";
+              ctx.fillRect(32, 17, 6, 6);
+            }
+          }
+        }
       }
 
       function loop() {
@@ -799,11 +1041,9 @@
       }
       loop();
 
-      // --- UNIFIED INPUT HANDLING (Touch & Mouse) ---
       function onInteract(e) {
-        // Om spelet inte är igång, gör inget (menyn hanteras separat)
         if (gameState !== "MENU" && gameState !== "END") {
-          e.preventDefault(); // Förhindra scroll/zoom och dubbelfyrning av mus-event
+          e.preventDefault();
 
           const rect = canvas.getBoundingClientRect();
 
@@ -816,7 +1056,6 @@
             clientY = e.clientY;
           }
 
-          // Skala koordinaterna till intern upplösning (256x224)
           const scaleX = canvas.width / rect.width;
           const scaleY = canvas.height / rect.height;
 
